@@ -1,0 +1,52 @@
+plugins {
+    id 'java'
+    id 'com.google.protobuf' version '0.8.8' // this plugin adds the protobuf block  below
+    id 'com.github.sherter.google-java-format' version '0.8' // adds tasks googleJavaFormat and verifyGoogleJavaFormat
+}
+
+group 'com.example'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 14
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile "com.google.protobuf:protobuf-java:3.6.1"
+    compile "io.grpc:grpc-all:1.19.0"
+    compile "javax.annotation:javax.annotation-api:1.2"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+
+protobuf {
+    // configure the protoc executable
+    protoc {
+        // download from repositories
+        artifact = "com.google.protobuf:protoc:3.7.0"
+    }
+    // locate the codegen plugins
+    plugins {
+        // locate a plugin with name grpc. If it is unable to locate it, protoc will try to use "protoc-gen-grpc"
+        // from system search path.
+        // NOTE : THIS WILL ONLY LOCATE THE PLUGIN, NOT APPLY IT.
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.19.0"
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins{
+            grpc{}
+        }
+    }
+}

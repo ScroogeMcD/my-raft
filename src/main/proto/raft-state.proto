@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_package = "com.example.raft.node";
+option java_outer_classname = "PersistentState";
+
+message RaftNodePersistentState {
+  uint32 term = 1;
+  uint32 candidateIdVotedFor = 2 ;
+}

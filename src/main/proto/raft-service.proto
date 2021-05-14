@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option java_package = "com.example.raft.proto";
+
+service RaftProtocolNode {
+  rpc RequestVote(RequestVoteParams) returns(RequestVoteResponse) {};
+  rpc AppendEntries(AppendEntriesParams) returns(AppendEntriesResponse) {};
+}
+
+message RequestVoteParams {
+  uint32 term = 1;          // candidate's term
+  uint32 candidateId = 2;   // candidate requesting vote
+  uint32 lastLogIndex = 3;  // index of candidate's last log entry
+  uint32 lastLogTerm = 4;   // term of candidate's last log entry
+}
+
+message RequestVoteResponse {
+  uint32 term = 1;          // current term for candidate to update itself
+  bool voteGranted = 2;     // true means candidate received vote
+}
+
+message AppendEntriesParams {
+  uint32 term = 1;                // leader's term
+  uint32 leaderId = 2;            // so follower can redirect clients
+  uint32 prevLogIndex = 3;        // index of log entry immediately preceding new ones
+  uint32 prevLogTerm = 4;         // term of prevLogIndex entry
+  repeated string logEntries = 5; // log entries to store (empty for heartbeat)
+  uint32 leaderCommitIndex = 6;   // leader's commit index
+}
+
+message AppendEntriesResponse {
+  uint32 term = 1;                // current term for leader to update itself
+  bool success = 2;               // true if follower container entry matching prevLogIndex and prevLogTerm
+}
