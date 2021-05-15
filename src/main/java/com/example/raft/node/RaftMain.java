@@ -1,54 +1,51 @@
-package com.example.raft.rpc.server;
+package com.example.raft.node;
 
-import com.example.raft.node.RaftNode;
-import com.example.raft.rpc.client.RaftNodePeers;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class RaftServer {
-  private static final Logger logger = Logger.getLogger(RaftServer.class.getName());
+public class RaftMain {
+  private static final Logger logger = LoggerFactory.getLogger(RaftMain.class);
   private final int port;
-  private Server server;
+  private Server grpcServer;
 
-  public RaftServer(int port, RaftNode node) throws Exception {
+  public RaftMain(int port, RaftNode node) throws Exception {
     this.port = port;
-    server = ServerBuilder.forPort(port).addService(node).build();
+    grpcServer = ServerBuilder.forPort(port).addService(node).build();
   }
 
   public void start() throws IOException {
-    server.start();
-    logger.info("Server started. Listening on port: " + port);
+    grpcServer.start();
+    logger.info("Server started. Listening on port: {}", port);
 
     Runtime.getRuntime()
         .addShutdownHook(
-            new Thread() {
-              public void run() {
-                System.err.println("Shutting down grpc server since JVM is shutting down.");
-                try {
-                  RaftServer.this.stop();
-                } catch (Exception e) {
-                  e.printStackTrace(System.err);
-                }
-                System.err.println("Server shutdown complete");
-              }
-            });
+            new Thread(
+                () -> {
+                  System.err.println("Shutting down grpc server since JVM is shutting down.");
+                  try {
+                    RaftMain.this.stop();
+                  } catch (Exception e) {
+                    e.printStackTrace(System.err);
+                  }
+                  System.err.println("Server shutdown complete");
+                }));
   }
 
   public void stop() throws InterruptedException {
-    if (server != null) {
-      server.shutdown().awaitTermination(30, TimeUnit.SECONDS);
+    if (grpcServer != null) {
+      grpcServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
     }
   }
 
   // Await termination on the main thread since the gRPC library uses daemon threads
   public void blockUntilShutdown() throws InterruptedException {
-    if (server != null) server.awaitTermination();
+    if (grpcServer != null) grpcServer.awaitTermination();
   }
 
   /**
@@ -58,7 +55,7 @@ public class RaftServer {
    */
   public static void main(String[] args) throws Exception {
     if (args.length % 2 != 0) {
-      logger.log(Level.SEVERE, "Even number of args required.");
+      logger.error("Even number of args required.");
       return;
     }
 
@@ -70,7 +67,7 @@ public class RaftServer {
     }
 
     RaftNode node = new RaftNode(nodeId, new RaftNodePeers(idToPortMap));
-    RaftServer raftServer = new RaftServer(nodePort, node);
+    RaftMain raftServer = new RaftMain(nodePort, node);
     raftServer.start();
     raftServer.blockUntilShutdown();
   }

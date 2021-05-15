@@ -2,7 +2,6 @@ package com.example.raft.node;
 
 import com.example.raft.proto.RaftProtocolNodeGrpc.*;
 import com.example.raft.proto.RaftService.*;
-import com.example.raft.rpc.client.RaftNodePeers;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,10 +11,11 @@ import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RaftNode extends RaftProtocolNodeImplBase {
-  private static final Logger logger = Logger.getLogger(RaftNode.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(RaftNode.class);
   /** fields representing the current node */
   private final int nodeId;
 
@@ -78,7 +78,6 @@ public class RaftNode extends RaftProtocolNodeImplBase {
       };
 
   private void beginElection() {
-    logger.info("Leader election started.");
     // STEP 01: increment currentTerm and transition to CANDIDATE nodeState
     becomeCandidate();
 
@@ -88,20 +87,20 @@ public class RaftNode extends RaftProtocolNodeImplBase {
   }
 
   private void becomeCandidate() {
-    logger.info("Becoming candidate");
+    logger.debug("Becoming candidate");
     termNumber.incrementAndGet();
     nodeState = NodeState.CANDIDATE;
   }
 
   public void stepDown(int termNumber) {
-    logger.info("Stepping down. Higher term number received : " + termNumber);
+    logger.debug("Stepping down. Higher term number received : {}", termNumber);
     nodeState = NodeState.FOLLOWER;
     this.termNumber = new AtomicInteger(termNumber);
     this.candidateIdVotedFor = new AtomicInteger(-1);
   }
 
   public void becomeLeader() {
-    logger.info("####### BECOMING LEADER");
+    logger.info("BECOMING LEADER");
     nodeState = NodeState.LEADER;
     leaderHeartBeatThreadPool.scheduleWithFixedDelay(
         () -> sendAppendEntriesToPeers(),
@@ -111,7 +110,7 @@ public class RaftNode extends RaftProtocolNodeImplBase {
   }
 
   private void sendAppendEntriesToPeers() {
-    logger.info("Leader (id: " + nodeId + ") sending AppendEntries RPC to peers.");
+    logger.debug("Leader (id: {}) sending AppendEntries RPC to peers.", nodeId);
     var appendEntriesParams =
         AppendEntriesParams.newBuilder().setTerm(termNumber.get()).setLeaderId(nodeId).build();
     peers.sendAppendEntriesToPeers(appendEntriesParams);
@@ -154,25 +153,21 @@ public class RaftNode extends RaftProtocolNodeImplBase {
       RequestVoteParams request, StreamObserver<RequestVoteResponse> responseObserver) {
     var responseBuilder = RequestVoteResponse.newBuilder();
     var candidateTerm = request.getTerm();
-    logger.info(
-        "################# RV : CandidateId: "
-            + request.getCandidateId()
-            + ", MyTerm: "
-            + termNumber.get()
-            + ", candidateTerm: "
-            + candidateTerm
-            + ", candidateVotedFor: "
-            + candidateIdVotedFor.get());
+    logger.debug(
+        "CandidateId: {}, MyTerm: {}, candidateTerm: {}, candidateVotedFor: {}",
+        request.getCandidateId(),
+        termNumber.get(),
+        candidateTerm,
+        candidateIdVotedFor.get());
 
     if (candidateTerm < termNumber.get()) {
       var response = responseBuilder.setTerm(termNumber.get()).setVoteGranted(false).build();
-      logger.info(
-          "################# RV: vote declined for candidateId: " + request.getCandidateId());
+      logger.debug("vote declined for candidateId: {}", request.getCandidateId());
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } else if (candidateIdVotedFor.get() == -1
         || candidateIdVotedFor.get() == request.getCandidateId()) {
-      logger.info("************** RV: vote given for candidateId: " + request.getCandidateId());
+      logger.debug("voted for candidateId: {}", request.getCandidateId());
       var response = responseBuilder.setTerm(termNumber.get()).setVoteGranted(true).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
@@ -185,21 +180,19 @@ public class RaftNode extends RaftProtocolNodeImplBase {
       AppendEntriesParams request, StreamObserver<AppendEntriesResponse> responseObserver) {
     var responseBuilder = AppendEntriesResponse.newBuilder();
     var requestTerm = request.getTerm();
-    logger.info(
-        "################# AE : Received heartbeat from leader. MyTerm:"
-            + termNumber.get()
-            + ", leader's term: "
-            + requestTerm);
+    logger.debug(
+        "Received heartbeat from leader. MyTerm: {}, leader's term: {}",
+        termNumber.get(),
+        requestTerm);
     if (requestTerm < termNumber.get()) {
       var response = responseBuilder.setTerm(termNumber.get()).setSuccess(false).build();
       responseObserver.onNext(response);
-      responseObserver.onCompleted();
     } else {
       leaderElectionTime = new AtomicLong(System.currentTimeMillis() + ELECTION_TIMEOUT_MILLIS);
       var response = responseBuilder.setTerm(termNumber.get()).setSuccess(true).build();
       responseObserver.onNext(response);
-      responseObserver.onCompleted();
     }
+    responseObserver.onCompleted();
   }
 
   public AtomicInteger getTermNumber() {

@@ -1,4 +1,4 @@
-package com.example.raft.rpc.client;
+package com.example.raft.node;
 
 import com.example.raft.proto.RaftProtocolNodeGrpc;
 import com.example.raft.proto.RaftProtocolNodeGrpc.RaftProtocolNodeBlockingStub;
@@ -11,28 +11,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RaftNodePeers {
 
-  private static final Logger logger = Logger.getLogger(RaftNodePeers.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(RaftNodePeers.class);
 
   /** Thread pool used by this thread to issue rpc calls to other servers in the cluster */
-  private ExecutorService rpcThreadPool = Executors.newFixedThreadPool(50);
+  private final ExecutorService rpcThreadPool = Executors.newFixedThreadPool(50);
 
-  private Map<Integer, RaftProtocolNodeBlockingStub> clientIdToStubMap;
-  private int peersCount = 0;
+  private final Map<Integer, RaftProtocolNodeBlockingStub> clientIdToStubMap;
 
   public RaftNodePeers(Map<Integer, Integer> peerIdToPortMap) {
     clientIdToStubMap = new HashMap<>();
     for (Map.Entry<Integer, Integer> entry : peerIdToPortMap.entrySet()) {
       clientIdToStubMap.put(entry.getKey(), createPeerStub(entry.getValue()));
-      peersCount++;
     }
   }
 
   private RaftProtocolNodeBlockingStub createPeerStub(int port) {
-    String target = "localhost:" + Integer.toString(port);
+    String target = "localhost:" + port;
     ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
     return RaftProtocolNodeGrpc.newBlockingStub(channel);
   }
@@ -41,8 +40,8 @@ public class RaftNodePeers {
       RequestVoteParams requestVoteParams, Consumer<RequestVoteResponse> voteResponseHandler) {
     int currentTerm = requestVoteParams.getTerm();
     int candidateId = requestVoteParams.getCandidateId();
-    // logger.info(
-    //  "Starting vote request for candidateId: " + candidateId + ", termId: " + currentTerm);
+    logger.debug(
+        "Starting vote request for candidateId: {}, termId: {} ", candidateId, currentTerm);
 
     // STEP 01 : Send RequestVote RPC to all peers in parallel
     List<Future<RequestVoteResponse>> voteResponseFutures = new ArrayList<>();
@@ -63,13 +62,11 @@ public class RaftNodePeers {
       try {
         response = future.get(500, TimeUnit.MILLISECONDS);
       } catch (Exception e) {
-        // e.printStackTrace();
+        logger.warn("Exception occurred while requesting vote", e);
       }
 
       if (response != null) voteResponseHandler.accept(response);
     }
-    /*System.out.println(
-    "Completed vote request for candidateId: " + candidateId + ", termId: " + currentTerm);*/
   }
 
   public void sendAppendEntriesToPeers(AppendEntriesParams params) {

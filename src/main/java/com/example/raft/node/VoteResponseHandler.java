@@ -3,14 +3,15 @@ package com.example.raft.node;
 import com.example.raft.proto.RaftService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class VoteResponseHandler implements Consumer<RaftService.RequestVoteResponse> {
 
-  private static final Logger logger = Logger.getLogger(VoteResponseHandler.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(VoteResponseHandler.class);
 
-  private AtomicInteger favourableVotesReceived = new AtomicInteger(0);
-  private RaftNode node;
+  private final AtomicInteger favourableVotesReceived = new AtomicInteger(0);
+  private final RaftNode node;
 
   public VoteResponseHandler(RaftNode node) {
     this.node = node;
@@ -18,7 +19,7 @@ public class VoteResponseHandler implements Consumer<RaftService.RequestVoteResp
 
   @Override
   public void accept(RaftService.RequestVoteResponse response) {
-    // logger.info("Received response from client, for VoteRequest");
+    logger.debug("Received response from client, for VoteRequest");
     int responseTermNumber = response.getTerm();
     boolean responseVote = response.getVoteGranted();
     if (node.getNodeState() == NodeState.CANDIDATE) {
